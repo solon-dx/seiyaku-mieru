@@ -165,19 +165,45 @@ function doSearch(){
   let locQuery=q.replace(/の?(マンション|戸建|土地|売地|中古|新築)/g,'').trim();
   if(!locQuery)locQuery=q;
 
+  // 全角半角を正規化して比較
+  function norm(s){return s.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/　/g,' ')}
+  const nq=norm(locQuery);
+
   let center=null;
   let matchedAddr='';
+  let bestScore=0;
+
+  // スコアリング: 長くマッチするほど高スコア
   for(const[addr,info]of Object.entries(locMap)){
-    if(addr.includes(locQuery)){
-      if(!center||addr.length<matchedAddr.length){
-        center={lt:info.lt,lg:info.lg};matchedAddr=addr;
-      }
+    const na=norm(addr);
+    // 完全含有チェック（正規化済み）
+    if(na.includes(nq)||nq.includes(na)){
+      const score=Math.min(nq.length,na.length)*10+(na.includes(nq)?5:0);
+      if(score>bestScore){bestScore=score;center={lt:info.lt,lg:info.lg};matchedAddr=addr}
     }
   }
 
+  // 部分マッチ: 入力を長い順に分割して試行
+  if(!center){
+    for(let len=nq.length-1;len>=2;len--){
+      for(let start=0;start<=nq.length-len;start++){
+        const sub=nq.substring(start,start+len);
+        for(const[addr,info]of Object.entries(locMap)){
+          if(norm(addr).includes(sub)){
+            const score=len;
+            if(score>bestScore){bestScore=score;center={lt:info.lt,lg:info.lg};matchedAddr=addr}
+          }
+        }
+        if(center)break;
+      }
+      if(center)break;
+    }
+  }
+
+  // 建物名検索
   if(!center){
     D.forEach(r=>{
-      if(r.n&&r.n.includes(locQuery)){
+      if(r.n&&norm(r.n).includes(nq)){
         if(!center){center={lt:r.lt,lg:r.lg};matchedAddr=r.a}
       }
     });
@@ -189,17 +215,22 @@ function doSearch(){
     return;
   }
 
+  // 町名ベース検索: 丁目を除いた町名で住所マッチ + 500m圏内も含む
+  const townBase=nq.replace(/[0-9０-９]+丁目?$/, '');
   let results=[];
   D.forEach(r=>{
     if(!types.includes(r.t))return;
     if(typeFilter&&!typeFilter.includes(r.t))return;
+    const na=norm(r.a);
+    const addrMatch=na.includes(nq)||na.includes(townBase);
     const dist=haversine(center.lt,center.lg,r.lt,r.lg);
-    if(dist<=500){results.push({...r,dist:Math.round(dist)})}
+    if(addrMatch||dist<=500){results.push({...r,dist:Math.round(dist),addrMatch})}
   });
 
-  results.sort((a,b)=>a.dist-b.dist||b.p-a.p);
+  results.sort((a,b)=>(b.addrMatch?1:0)-(a.addrMatch?1:0)||a.dist-b.dist||b.p-a.p);
 
-  document.getElementById('info').textContent='「'+matchedAddr+'」周辺（半径500m）を検索中';
+  const townLabel=townBase.replace(/.*[市区町村]/,'');
+  document.getElementById('info').textContent='「'+(townLabel||matchedAddr)+'」周辺の成約事例を検索中';
 
   const el=document.getElementById('results');
   if(!results.length){
