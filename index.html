@@ -167,7 +167,9 @@ function doSearch(){
 
   // 全角→半角に正規化
   function norm(s){return s.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/　/g,' ')}
-  const nq=norm(locQuery);
+  let nq=norm(locQuery);
+  // 県名・市名を除去（「佐賀県佐賀市川副町」→「川副町」）
+  nq=nq.replace(/^.+?[都道府県]/,'').replace(/^.+?[市郡]/,'');
   // 丁目を除いた町名ベース（「光1丁目」→「光」）
   const townBase=nq.replace(/[0-9]+丁目?$/,'');
 
