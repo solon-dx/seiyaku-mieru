@@ -172,15 +172,14 @@ function doSearch(){
   const townBase=nq.replace(/[0-9]+丁目?$/,'');
 
   // 住所が検索町名に正確にマッチするか判定
-  // 「光」で「藤光」にマッチさせず、「佐賀市光1丁目」にはマッチさせる
+  // 「光」で「藤光」「光法」にマッチさせず、「佐賀市光1丁目」にはマッチさせる
   function townMatch(addr,query){
     if(!query)return false;
     const na=norm(addr);
     const eq=query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    // パターン: 市郡町区村字の直後にクエリが来る
-    if(new RegExp('[市郡町区村字]'+eq).test(na))return true;
-    // パターン: 大字の後にクエリ
-    if(new RegExp('大字'+eq).test(na))return true;
+    // 町名の前は市郡町区村字、後ろは数字・丁目・end
+    if(new RegExp('[市郡町区村字]'+eq+'([0-9]+丁目|町|$)').test(na))return true;
+    if(new RegExp('大字'+eq+'([0-9]+丁目|町|$)').test(na))return true;
     return false;
   }
 
