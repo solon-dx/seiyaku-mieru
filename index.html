@@ -177,9 +177,13 @@ function doSearch(){
     if(!query)return false;
     const na=norm(addr);
     const eq=query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    // 町名の前は市郡町区村字、後ろは数字・丁目・end
-    if(new RegExp('[市郡町区村字]'+eq+'([0-9]+丁目|町|$)').test(na))return true;
-    if(new RegExp('大字'+eq+'([0-9]+丁目|町|$)').test(na))return true;
+    // 後方境界: 数字丁目、町、大字、end
+    const tail='([0-9]+丁目|大字|町|$)';
+    // 前方境界: 市郡町区村字
+    if(new RegExp('[市郡町区村字]'+eq+tail).test(na))return true;
+    if(new RegExp('大字'+eq+tail).test(na))return true;
+    // クエリ自体が「○○町」で終わる場合（川副町など）
+    if(eq.endsWith('町')&&new RegExp('[市郡]'+eq).test(na))return true;
     return false;
   }
 
