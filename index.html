@@ -70,52 +70,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sa
 </div>
 
 <script>
-const SHEET_CSV_URL='https://script.google.com/macros/s/AKfycbymQHgn4EP6XirpgShQVEo-QYschoZBR-R8xKwYzrg23GZtsL6K7GM_ZkzbQ4B_6hzryA/exec';
+const API_URL='https://script.google.com/macros/s/AKfycbzHFY5eSSBI5cvGS1WSmOS7lEXF8WqIO60FsuOrj39qWiXR__Fd4grXbZRY0evoMdwYxg/exec';
 
 let D=[];
 let locMap={};
 
-function parseCSV(text){
-  const lines=text.split('\n');
-  const headers=lines[0].split(',');
-  const rows=[];
-  for(let i=1;i<lines.length;i++){
-    const line=lines[i].trim();
-    if(!line)continue;
-    // Handle CSV with possible quoted fields
-    const vals=[];
-    let cur='',inQ=false;
-    for(let j=0;j<line.length;j++){
-      const c=line[j];
-      if(c==='"'){inQ=!inQ}
-      else if(c===','&&!inQ){vals.push(cur);cur=''}
-      else{cur+=c}
-    }
-    vals.push(cur);
-    if(vals.length>=12){
-      const lat=parseFloat(vals[10])||0;
-      const lng=parseFloat(vals[11])||0;
-      if(lat&&lng){
-        rows.push({
-          d:vals[0],t:vals[1],a:vals[2],
-          la:parseFloat(vals[3])||0,
-          ba:parseFloat(vals[4])||0,
-          y:vals[5],s:vals[6],n:vals[7],
-          p:parseInt(vals[8])||0,
-          lt:lat,lg:lng
-        });
-      }
-    }
+function fmtDate(s){
+  if(!s)return '';
+  if(typeof s==='string' && /^\w{3} \w{3}/.test(s)){
+    const d=new Date(s);
+    if(!isNaN(d)){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'}
   }
-  return rows;
+  return String(s);
 }
 
 async function loadData(){
   try{
-    const res=await fetch(SHEET_CSV_URL);
+    const res=await fetch(API_URL);
     if(!res.ok)throw new Error('HTTP '+res.status);
-    const text=await res.text();
-    D=parseCSV(text);
+    const items=await res.json();
+    D=items.filter(r=>r.lt&&r.lg).map(r=>({...r,d:fmtDate(r.d),y:fmtDate(r.y)}));
     locMap={};
     D.forEach(r=>{
       if(!locMap[r.a]){locMap[r.a]={lt:r.lt,lg:r.lg,c:1}}
