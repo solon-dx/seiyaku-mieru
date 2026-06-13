@@ -62,7 +62,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sa
 <label><input type="checkbox" class="ft" value="新築戸建" checked>新築戸建</label>
 <label><input type="checkbox" class="ft" value="売地" checked>売地</label>
 </div>
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
 <div class="status" id="status"></div>
+<button id="refreshBtn" onclick="refreshData()" style="display:none;padding:4px 12px;background:#e8f0fe;color:#1a73e8;border:1px solid #1a73e8;border-radius:16px;font-size:12px;cursor:pointer">データ更新</button>
+</div>
 <div class="info" id="info"></div>
 </div>
 <div class="results" id="results">
@@ -84,21 +87,60 @@ function fmtDate(s){
   return String(s);
 }
 
+function applyData(items){
+  D=items.filter(r=>r.lt&&r.lg).map(r=>({...r,d:fmtDate(r.d),y:fmtDate(r.y)}));
+  locMap={};
+  D.forEach(r=>{
+    if(!locMap[r.a]){locMap[r.a]={lt:r.lt,lg:r.lg,c:1}}
+    else{locMap[r.a].c++}
+  });
+}
+
+function showStatus(){
+  const cached=localStorage.getItem('seiyaku_date');
+  const dateStr=cached?new Date(Number(cached)).toLocaleDateString('ja-JP'):'';
+  document.getElementById('status').textContent=D.length+'件（'+dateStr+' 取得）';
+  document.getElementById('refreshBtn').style.display='inline-block';
+  document.getElementById('results').innerHTML='<div class="no-results">検索キーワードを入力してください</div>';
+}
+
+async function fetchFromServer(){
+  const res=await fetch(API_URL);
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const items=await res.json();
+  localStorage.setItem('seiyaku_data',JSON.stringify(items));
+  localStorage.setItem('seiyaku_date',String(Date.now()));
+  return items;
+}
+
 async function loadData(){
   try{
-    const res=await fetch(API_URL);
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const items=await res.json();
-    D=items.filter(r=>r.lt&&r.lg).map(r=>({...r,d:fmtDate(r.d),y:fmtDate(r.y)}));
-    locMap={};
-    D.forEach(r=>{
-      if(!locMap[r.a]){locMap[r.a]={lt:r.lt,lg:r.lg,c:1}}
-      else{locMap[r.a].c++}
-    });
-    document.getElementById('status').textContent=D.length+'件のデータを読み込みました';
-    document.getElementById('results').innerHTML='<div class="no-results">検索キーワードを入力してください</div>';
+    const cachedData=localStorage.getItem('seiyaku_data');
+    if(cachedData){
+      applyData(JSON.parse(cachedData));
+      showStatus();
+      return;
+    }
+    const items=await fetchFromServer();
+    applyData(items);
+    showStatus();
   }catch(e){
-    document.getElementById('results').innerHTML='<div class="no-results">データの読み込みに失敗しました。<br>スプレッドシートの「ウェブに公開」設定を確認してください。<br><small>'+e.message+'</small></div>';
+    document.getElementById('results').innerHTML='<div class="no-results">データの読み込みに失敗しました。<br><small>'+e.message+'</small></div>';
+  }
+}
+
+async function refreshData(){
+  const btn=document.getElementById('refreshBtn');
+  btn.textContent='更新中...';btn.disabled=true;
+  try{
+    const items=await fetchFromServer();
+    applyData(items);
+    showStatus();
+    btn.textContent='更新完了!';
+    setTimeout(()=>{btn.textContent='データ更新';btn.disabled=false},2000);
+  }catch(e){
+    btn.textContent='更新失敗';btn.disabled=false;
+    alert('更新に失敗しました: '+e.message);
   }
 }
 
