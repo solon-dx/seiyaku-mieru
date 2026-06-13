@@ -168,69 +168,74 @@ function doSearch(){
   // 全角半角を正規化して比較
   function norm(s){return s.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/　/g,' ')}
   const nq=norm(locQuery);
+  // 丁目を除いた町名ベース
+  const townBase=nq.replace(/[0-9]+丁目?$/,'');
 
-  let center=null;
-  let matchedAddr='';
-  let bestScore=0;
-
-  // スコアリング: 長くマッチするほど高スコア
-  for(const[addr,info]of Object.entries(locMap)){
+  // 住所から町名部分を抽出して比較する関数
+  function extractTown(addr){
+    // 「県→市/郡→町/区→大字→」の後の町名部分を取得
+    const m=addr.match(/[市郡](?:[^市郡]+?[町区])?(?:大字)?(.+?)(?:[0-9]+丁目|$)/);
+    return m?m[1]:'';
+  }
+  function townMatch(addr,query){
     const na=norm(addr);
-    // 完全含有チェック（正規化済み）
-    if(na.includes(nq)||nq.includes(na)){
-      const score=Math.min(nq.length,na.length)*10+(na.includes(nq)?5:0);
-      if(score>bestScore){bestScore=score;center={lt:info.lt,lg:info.lg};matchedAddr=addr}
-    }
+    // 完全な町名一致: 市/郡の後、または大字の後にクエリが来る
+    const patterns=[
+      new RegExp('[市郡]'+query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([0-9]*丁目|$)'),
+      new RegExp('[市郡].*[町区]'+query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),
+      new RegExp('大字'+query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),
+    ];
+    for(const p of patterns){if(p.test(na))return true}
+    // フォールバック: 市郡町区の直後にクエリ
+    const idx=na.indexOf(query);
+    if(idx>0&&/[市郡町区村字]/.test(na[idx-1]))return true;
+    return false;
   }
 
-  // 部分マッチ: 入力を長い順に分割して試行
-  if(!center){
-    for(let len=nq.length-1;len>=2;len--){
-      for(let start=0;start<=nq.length-len;start++){
-        const sub=nq.substring(start,start+len);
-        for(const[addr,info]of Object.entries(locMap)){
-          if(norm(addr).includes(sub)){
-            const score=len;
-            if(score>bestScore){bestScore=score;center={lt:info.lt,lg:info.lg};matchedAddr=addr}
-          }
-        }
-        if(center)break;
-      }
-      if(center)break;
-    }
-  }
+  // Step1: 町名が正確にマッチする物件を収集
+  let addrMatches=[];
+  D.forEach(r=>{
+    if(townMatch(r.a,townBase)||townMatch(r.a,nq)){addrMatches.push(r)}
+  });
 
-  // 建物名検索
-  if(!center){
+  // Step2: 住所マッチがなければ部分マッチ（建物名含む）
+  if(!addrMatches.length){
     D.forEach(r=>{
-      if(r.n&&norm(r.n).includes(nq)){
-        if(!center){center={lt:r.lt,lg:r.lg};matchedAddr=r.a}
-      }
+      const na=norm(r.a);
+      if(na.includes(nq)){addrMatches.push(r)}
+      else if(r.n&&norm(r.n).includes(nq)){addrMatches.push(r)}
     });
   }
 
-  if(!center){
+  if(!addrMatches.length){
     document.getElementById('results').innerHTML='<div class="no-results">該当する地名が見つかりません。<br>例：諏訪野町、六ツ門町、日吉町</div>';
     document.getElementById('info').textContent='';
     return;
   }
 
-  // 町名ベース検索: 丁目を除いた町名で住所マッチ + 500m圏内も含む
-  const townBase=nq.replace(/[0-9０-９]+丁目?$/, '');
+  // Step3: マッチした物件群の重心を中心にする
+  let cLat=0,cLng=0;
+  addrMatches.forEach(r=>{cLat+=r.lt;cLng+=r.lg});
+  cLat/=addrMatches.length;cLng/=addrMatches.length;
+
+  // Step4: 住所マッチ + 重心から500m圏内の物件を結合
+  const matchedSet=new Set(addrMatches.map((_,i)=>i));
   let results=[];
   D.forEach(r=>{
     if(!types.includes(r.t))return;
     if(typeFilter&&!typeFilter.includes(r.t))return;
-    const na=norm(r.a);
-    const addrMatch=na.includes(nq)||na.includes(townBase);
-    const dist=haversine(center.lt,center.lg,r.lt,r.lg);
-    if(addrMatch||dist<=500){results.push({...r,dist:Math.round(dist),addrMatch})}
+    const isAddrMatch=townMatch(r.a,townBase)||townMatch(r.a,nq);
+    const isNameMatch=r.n&&norm(r.n).includes(nq);
+    const dist=haversine(cLat,cLng,r.lt,r.lg);
+    if(isAddrMatch||isNameMatch||dist<=500){
+      results.push({...r,dist:Math.round(dist),addrMatch:isAddrMatch})
+    }
   });
 
   results.sort((a,b)=>(b.addrMatch?1:0)-(a.addrMatch?1:0)||a.dist-b.dist||b.p-a.p);
 
   const townLabel=townBase.replace(/.*[市区町村]/,'');
-  document.getElementById('info').textContent='「'+(townLabel||matchedAddr)+'」周辺の成約事例を検索中';
+  document.getElementById('info').textContent='「'+(townLabel||locQuery)+'」周辺の成約事例を検索中';
 
   const el=document.getElementById('results');
   if(!results.length){
