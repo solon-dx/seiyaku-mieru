@@ -48,7 +48,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sa
 <body>
 <div class="header">
 <h1>成約事例みえる</h1>
-<p>町名やマンション名で検索 → 半径500m以内の成約事例を表示</p>
+<p>町名やマンション名で検索 → 半径1km以内の成約事例を表示</p>
 </div>
 <div class="search-area">
 <div class="search-box">
@@ -226,7 +226,7 @@ function doSearch(){
     if(typeFilter&&!typeFilter.includes(r.t))return;
     const isAddrMatch=townMatch(r.a,townBase);
     const dist=haversine(cLat,cLng,r.lt,r.lg);
-    if(isAddrMatch||dist<=500){
+    if(isAddrMatch||dist<=1000){
       results.push({...r,dist:Math.round(dist),addrMatch:isAddrMatch});
     }
   });
@@ -234,7 +234,7 @@ function doSearch(){
   results.sort((a,b)=>(b.addrMatch?1:0)-(a.addrMatch?1:0)||a.dist-b.dist||b.p-a.p);
 
   const townLabel=townBase.replace(/.*[市区町村]/,'')||locQuery;
-  document.getElementById('info').textContent='「'+townLabel+'」＋ 周辺500m（緯度経度で計算）';
+  document.getElementById('info').textContent='「'+townLabel+'」＋ 周辺1km（緯度経度で計算）';
 
   const el=document.getElementById('results');
   if(!results.length){
