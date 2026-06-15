@@ -244,7 +244,8 @@ function doSearch(){
 
   el.innerHTML='<div class="count">'+results.length+'件の成約事例</div>'+results.map(r=>{
     const priceStr=r.p>=10000?(r.p/10000).toFixed(r.p%10000?1:0)+'億':r.p.toLocaleString();
-    return '<div class="card"><div class="card-header"><span class="card-type type-'+r.t+'">'+r.t+'</span><div class="card-price">'+priceStr+'<span> 万円</span></div></div>'+(r.n?'<div class="card-name">'+r.n+'</div>':'')+'<div class="card-addr">'+r.a+'</div><div class="card-details"><div><dt>取引時期</dt><dd>'+r.d+'</dd></div>'+(r.ba?'<div><dt>建物面積</dt><dd>'+r.ba+'㎡</dd></div>':'')+(r.la?'<div><dt>土地面積</dt><dd>'+r.la+'㎡</dd></div>':'')+(r.y?'<div><dt>建築年</dt><dd>'+r.y+'</dd></div>':'')+(r.s?'<div><dt>構造</dt><dd>'+r.s+'</dd></div>':'')+'</div><div class="dist">検索地点から約'+r.dist+'m</div></div>';
+    const tsuboTanka=(r.t==='売地'&&r.la&&r.p)?Math.round(r.p/(r.la/3.3058)):0;
+    return '<div class="card"><div class="card-header"><span class="card-type type-'+r.t+'">'+r.t+'</span><div class="card-price">'+priceStr+'<span> 万円</span></div></div>'+(r.n?'<div class="card-name">'+r.n+'</div>':'')+'<div class="card-addr">'+r.a+'</div><div class="card-details"><div><dt>取引時期</dt><dd>'+r.d+'</dd></div>'+(r.ba?'<div><dt>建物面積</dt><dd>'+r.ba+'㎡</dd></div>':'')+(r.la?'<div><dt>土地面積</dt><dd>'+r.la+'㎡</dd></div>':'')+(tsuboTanka?'<div><dt>坪単価</dt><dd style="color:#8e44ad;font-weight:700">'+tsuboTanka.toLocaleString()+'万円/坪</dd></div>':'')+(r.y?'<div><dt>建築年</dt><dd>'+r.y+'</dd></div>':'')+(r.s?'<div><dt>構造</dt><dd>'+r.s+'</dd></div>':'')+'</div><div class="dist">検索地点から約'+r.dist+'m</div></div>';
   }).join('');
 }
 
